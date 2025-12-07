@@ -37,6 +37,169 @@ st.set_page_config(
 
 # ============================================================
 
+def render_auth_gate() -> bool:
+    """
+    Login / signup gate shown once per session before everything else.
+    Returns True if the gate is being shown (and main app should NOT run yet).
+    """
+    if "auth_done" not in st.session_state:
+        st.session_state["auth_done"] = False
+
+    # If user already chose an option, skip gate
+    if st.session_state["auth_done"]:
+        return False
+
+    st.markdown('<div class="main-container">', unsafe_allow_html=True)
+
+    st.markdown("### Sign in to Crowdlike")
+    st.markdown(
+        "To personalize XP, coins, and streaks for this session, start with a quick login, "
+        "signup, or continue as a guest."
+    )
+
+    st.markdown(
+        """
+<div class="card-hero">
+  <div>
+    <span class="chip">Behavioral feedback engine</span>
+    <span class="chip">Hackathon build</span>
+    <span class="chip">Session-only data</span>
+  </div>
+  <p class="subtext">
+    Crowdlike turns your simulated on-chain behavior into XP, streaks and metrics.
+    This demo does not touch real wallets – it just shows the feedback layer.
+  </p>
+</div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    col1, col2, col3 = st.columns(3)
+
+    # Log in → skip intro, go directly to Login page
+    with col1:
+        if st.button("Log in", use_container_width=True):
+            st.session_state["auth_done"] = True
+            st.session_state["intro_done"] = True  # go straight into the app
+            navigate_to("login")
+
+    # Sign up → skip intro, go directly to Register page
+    with col2:
+        if st.button("Sign up", use_container_width=True):
+            st.session_state["auth_done"] = True
+            st.session_state["intro_done"] = True  # go straight into the app
+            navigate_to("register")
+
+    # Continue as guest → still show intro afterwards
+    with col3:
+        if st.button("Continue as guest", use_container_width=True):
+            # quick guest profile + a tiny XP hello
+            set_user_profile("Guest", "guest@example.com")
+            grant_xp(5, "Guest entry", "Continued as guest from auth gate")
+            st.session_state["auth_done"] = True
+            # DO NOT set intro_done here → they will see the intro screen
+
+    st.markdown(
+        "<p class='subtext'>You can always change account details later from the sidebar.</p>",
+        unsafe_allow_html=True,
+    )
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # If any of the buttons fired, auth_done is now True and on next rerun we skip this gate.
+    return not st.session_state["auth_done"]
+
+
+def render_crowdlike_intro() -> bool:
+    """
+    Intro screen shown once per session before the main app.
+    Returns True if the intro is being shown (and main app should NOT run yet).
+    """
+    if "intro_done" not in st.session_state:
+        st.session_state["intro_done"] = False
+
+    # If already passed intro, skip it
+    if st.session_state["intro_done"]:
+        return False
+
+    st.markdown('<div class="main-container">', unsafe_allow_html=True)
+
+    # Title + tagline
+    st.markdown("### Crowdlike")
+    st.markdown("#### Qubic behavioral feedback engine by *Cats can fly too!*")
+
+    # Hero card with chips
+    st.markdown(
+        """
+<div class="card-hero">
+  <div>
+    <span class="chip">Hackathon prototype</span>
+    <span class="chip">Session only</span>
+    <span class="chip">Built on Qubic</span>
+  </div>
+  <p class="subtext">
+    Turn raw on-chain decisions into XP, streaks, and behavior metrics –
+    this demo runs locally, with synthetic data only.
+  </p>
+</div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    col_l, col_r = st.columns([2, 1])
+
+    # Left side: quick explanation
+    with col_l:
+        st.markdown("#### What you can explore")
+        st.write("- **Home dashboard** – XP, coins, streaks, last scenario snapshot.")
+        st.write("- **Behavior Metrics Lab** – synthetic TES/BSS/BMS/CFS-style metrics.")
+        st.write("- **Scenario runs** – log outcomes for different behavior archetypes.")
+        st.write("- **Wallet & trading desk** – coin ↔ token flows (no real funds).")
+        st.write("- **Shop & achievements** – how soft rewards and milestones feel.")
+
+        st.markdown("#### Who this is for")
+        st.write("- Qubic users who want **feedback** on their behavior.")
+        st.write("- Hackathon judges who want a **5-minute tour** of the engine.")
+
+    # Right side: fast-path buttons
+    with col_r:
+        st.markdown("#### Fast paths")
+        if st.button("Open dashboard →", use_container_width=True):
+            st.session_state["intro_done"] = True
+            navigate_to("home_dashboard")
+
+        if st.button("Jump to Metrics Lab →", use_container_width=True):
+            st.session_state["intro_done"] = True
+            navigate_to("metrics_lab")
+
+        if st.button("See invest case →", use_container_width=True):
+            st.session_state["intro_done"] = True
+            navigate_to("invest_case")
+
+        st.caption("You can always move around using the sidebar inside the app.")
+
+    st.write("---")
+
+    # Generic “let me in” button
+    if st.button("Just let me click around the prototype →", use_container_width=True):
+        st.session_state["intro_done"] = True
+        navigate_to("landing_public")
+
+    st.markdown(
+        """
+<p class="subtext">
+All numbers reset on refresh. To make Crowdlike real, connect wallet data,
+Qubic events, and launch it through Nostromo.
+</p>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # If any of the buttons fired, intro_done is True and next rerun will go to main()
+    return not st.session_state["intro_done"]
+
 
 
 def init_user_state():
@@ -60,6 +223,7 @@ def init_user_state():
             "daily_tasks_done": {},   # mapping of YYYY-MM-DD -> list of completed task ids
             "token_balance": 0.0,     # simulated token holdings
             "token_trades": [],       # list of token buy/sell events
+            "ai_chat_history": [],    # session-only AI helper conversation
         }
 
 
@@ -250,6 +414,16 @@ def set_user_profile(username: str, email: str = None):
     if email:
         state["email"] = email
     record_activity_day()
+
+
+def ensure_chat_history():
+    """Make sure the lightweight AI chat buffer exists."""
+    state = get_user_state()
+    history = state.get("ai_chat_history")
+    if not isinstance(history, list):
+        history = []
+        state["ai_chat_history"] = history
+    return history
 
 
 
@@ -935,6 +1109,7 @@ add_page("privacy", "Privacy Policy", "Entry & Auth", "legal")
 add_page("cookie_consent", "Cookie / Data Consent", "Entry & Auth", "simple_info")
 
 add_page("invest_case", "Why You Should Invest", "Onboarding & Home", "invest_case")
+add_page("ai_assistant", "AI Coach / Helper", "Onboarding & Home", "ai_assistant")
 
 
 
@@ -2889,6 +3064,95 @@ def tpl_shop_page(page: Page):
     st.markdown("</div>", unsafe_allow_html=True)
 
 
+def generate_ai_reply(message: str, state: Dict) -> str:
+    """Small heuristic responder that reflects current session stats."""
+    streak = compute_streak(state["days_active"])
+    last = get_last_test_attempt()
+    xp = state["xp"]
+    coins = state["coins"]
+    tokens = state.get("token_balance", 0.0)
+
+    lower = message.lower()
+    lines = []
+    if "quest" in lower or "mission" in lower:
+        lines.append("Try this micro-quest to keep momentum:")
+        lines.append("- Run one quick scenario to keep the streak alive.")
+        lines.append("- Claim a daily task; they award fast XP.")
+        lines.append("- Log a tiny token trade to stay fluent without heavy risk.")
+    elif "xp" in lower or "level" in lower:
+        lines.append(f"You are at {xp} XP. Aim for the next 1,000 XP band.")
+        lines.append("Do one simulation in Metrics Lab, then one scenario run. Repeat daily.")
+    elif "streak" in lower or "consisten" in lower:
+        lines.append(f"Streak: {streak} day(s). Protect it with a 5-minute action today.")
+        lines.append("Schedule tomorrow's action now; streaks thrive on pre-commitment.")
+    elif "token" in lower or "trade" in lower or "wallet" in lower:
+        lines.append(f"Tokens: {round(tokens,2)} | Coins: {coins}.")
+        lines.append("Use small sizing; review recent trades and set one guardrail before your next swap.")
+    else:
+        lines.append("Snapshot of your session:")
+        lines.append(f"- XP: {xp}, Coins: {coins}, Streak: {streak} day(s).")
+        if last:
+            lines.append(f"- Last scenario: {last['name']} at {last['percent']}% (+{last['xp_gained']} XP).")
+        lines.append("Next best step: one simulation, one scenario, and log it.")
+    return "\n".join(lines)
+
+
+def tpl_ai_assistant(page: Page):
+    """AI helper (session-only) that summarizes your state and suggests next steps."""
+    render_top_bar(page.label)
+    state = get_user_state()
+    history = ensure_chat_history()
+
+    st.markdown('<div class="main-container">', unsafe_allow_html=True)
+    st.markdown("### AI Coach")
+    st.write("Ask for quests, streak help, XP plans, or trading nudges. Responses use your session stats only (no external model).")
+    st.caption("Session data only. Refresh to clear.")
+
+    stats = st.columns(4)
+    stats[0].metric("XP", state["xp"])
+    stats[1].metric("Coins", state["coins"])
+    stats[2].metric("Streak (days)", compute_streak(state["days_active"]))
+    stats[3].metric("Tokens", round(state.get("token_balance", 0.0), 2))
+
+    st.markdown("#### Quick prompts")
+    prompts = [
+        ("Daily quest", "Give me a small quest for today"),
+        ("Keep streak", "How do I keep my streak alive?"),
+        ("XP plan", "How can I level up faster this week?"),
+        ("Trading drill", "Suggest a low-risk trading drill"),
+    ]
+    qcols = st.columns(len(prompts))
+    for (label, prompt), col in zip(prompts, qcols):
+        if col.button(label):
+            history.append({"role": "user", "text": prompt})
+            history.append({"role": "assistant", "text": generate_ai_reply(prompt, state)})
+            record_activity_day()
+
+    st.markdown("#### Chat")
+    with st.form("ai_chat_form"):
+        user_msg = st.text_input("Ask the coach", key="ai_chat_input")
+        submitted = st.form_submit_button("Send")
+        if submitted and user_msg.strip():
+            history.append({"role": "user", "text": user_msg.strip()})
+            history.append({"role": "assistant", "text": generate_ai_reply(user_msg, state)})
+            if len(history) > 40:
+                del history[: len(history) - 40]
+            record_activity_day()
+
+    if history:
+        st.markdown("##### Conversation")
+        for msg in history[-12:]:
+            role = msg.get("role", "user").capitalize()
+            st.markdown(f"**{role}:** {msg.get('text', '')}")
+    else:
+        st.info("No messages yet. Send a question to start.")
+
+    st.write("---")
+    nav = st.columns(3)
+    nav[0].button("Daily Tasks", on_click=navigate_to, args=("daily_tasks",), use_container_width=True)
+    nav[1].button("Metrics Lab", on_click=navigate_to, args=("metrics_lab",), use_container_width=True)
+    nav[2].button("Token Trading", on_click=navigate_to, args=("token_trading",), use_container_width=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def tpl_settings_list(page: Page):
@@ -4253,6 +4517,7 @@ TEMPLATE_DISPATCH.update(
         "token_trading": tpl_token_trading,
         "invest_case": tpl_invest_case,
         "wallet_dashboard": tpl_wallet_dashboard,
+        "ai_assistant": tpl_ai_assistant,
     }
 )
 
@@ -4381,5 +4646,13 @@ def main():
 
 
 if __name__ == "__main__":
+    # 1) Auth gate (login / signup / guest)
+    needs_auth = render_auth_gate()
 
-    main()
+    # If auth gate is still showing, stop here
+    if not needs_auth:
+        # 2) Crowdlike intro gate (unless intro_done already True)
+        showing_intro = render_crowdlike_intro()
+        # 3) Main multipage app
+        if not showing_intro:
+            main()
