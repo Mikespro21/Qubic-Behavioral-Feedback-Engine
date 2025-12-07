@@ -37,6 +37,169 @@ st.set_page_config(
 
 # ============================================================
 
+def render_auth_gate() -> bool:
+    """
+    Login / signup gate shown once per session before everything else.
+    Returns True if the gate is being shown (and main app should NOT run yet).
+    """
+    if "auth_done" not in st.session_state:
+        st.session_state["auth_done"] = False
+
+    # If user already chose an option, skip gate
+    if st.session_state["auth_done"]:
+        return False
+
+    st.markdown('<div class="main-container">', unsafe_allow_html=True)
+
+    st.markdown("### Sign in to Crowdlike")
+    st.markdown(
+        "To personalize XP, coins, and streaks for this session, start with a quick login, "
+        "signup, or continue as a guest."
+    )
+
+    st.markdown(
+        """
+<div class="card-hero">
+  <div>
+    <span class="chip">Behavioral feedback engine</span>
+    <span class="chip">Hackathon build</span>
+    <span class="chip">Session-only data</span>
+  </div>
+  <p class="subtext">
+    Crowdlike turns your simulated on-chain behavior into XP, streaks and metrics.
+    This demo does not touch real wallets – it just shows the feedback layer.
+  </p>
+</div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    col1, col2, col3 = st.columns(3)
+
+    # Log in → skip intro, go directly to Login page
+    with col1:
+        if st.button("Log in", use_container_width=True):
+            st.session_state["auth_done"] = True
+            st.session_state["intro_done"] = True  # go straight into the app
+            navigate_to("login")
+
+    # Sign up → skip intro, go directly to Register page
+    with col2:
+        if st.button("Sign up", use_container_width=True):
+            st.session_state["auth_done"] = True
+            st.session_state["intro_done"] = True  # go straight into the app
+            navigate_to("register")
+
+    # Continue as guest → still show intro afterwards
+    with col3:
+        if st.button("Continue as guest", use_container_width=True):
+            # quick guest profile + a tiny XP hello
+            set_user_profile("Guest", "guest@example.com")
+            grant_xp(5, "Guest entry", "Continued as guest from auth gate")
+            st.session_state["auth_done"] = True
+            # DO NOT set intro_done here → they will see the intro screen
+
+    st.markdown(
+        "<p class='subtext'>You can always change account details later from the sidebar.</p>",
+        unsafe_allow_html=True,
+    )
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # If any of the buttons fired, auth_done is now True and on next rerun we skip this gate.
+    return not st.session_state["auth_done"]
+
+
+def render_crowdlike_intro() -> bool:
+    """
+    Intro screen shown once per session before the main app.
+    Returns True if the intro is being shown (and main app should NOT run yet).
+    """
+    if "intro_done" not in st.session_state:
+        st.session_state["intro_done"] = False
+
+    # If already passed intro, skip it
+    if st.session_state["intro_done"]:
+        return False
+
+    st.markdown('<div class="main-container">', unsafe_allow_html=True)
+
+    # Title + tagline
+    st.markdown("### Crowdlike")
+    st.markdown("#### Qubic behavioral feedback engine by *Cats can fly too!*")
+
+    # Hero card with chips
+    st.markdown(
+        """
+<div class="card-hero">
+  <div>
+    <span class="chip">Hackathon prototype</span>
+    <span class="chip">Session only</span>
+    <span class="chip">Built on Qubic</span>
+  </div>
+  <p class="subtext">
+    Turn raw on-chain decisions into XP, streaks, and behavior metrics –
+    this demo runs locally, with synthetic data only.
+  </p>
+</div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    col_l, col_r = st.columns([2, 1])
+
+    # Left side: quick explanation
+    with col_l:
+        st.markdown("#### What you can explore")
+        st.write("- **Home dashboard** – XP, coins, streaks, last scenario snapshot.")
+        st.write("- **Behavior Metrics Lab** – synthetic TES/BSS/BMS/CFS-style metrics.")
+        st.write("- **Scenario runs** – log outcomes for different behavior archetypes.")
+        st.write("- **Wallet & trading desk** – coin ↔ token flows (no real funds).")
+        st.write("- **Shop & achievements** – how soft rewards and milestones feel.")
+
+        st.markdown("#### Who this is for")
+        st.write("- Qubic users who want **feedback** on their behavior.")
+        st.write("- Hackathon judges who want a **5-minute tour** of the engine.")
+
+    # Right side: fast-path buttons
+    with col_r:
+        st.markdown("#### Fast paths")
+        if st.button("Open dashboard →", use_container_width=True):
+            st.session_state["intro_done"] = True
+            navigate_to("home_dashboard")
+
+        if st.button("Jump to Metrics Lab →", use_container_width=True):
+            st.session_state["intro_done"] = True
+            navigate_to("metrics_lab")
+
+        if st.button("See invest case →", use_container_width=True):
+            st.session_state["intro_done"] = True
+            navigate_to("invest_case")
+
+        st.caption("You can always move around using the sidebar inside the app.")
+
+    st.write("---")
+
+    # Generic “let me in” button
+    if st.button("Just let me click around the prototype →", use_container_width=True):
+        st.session_state["intro_done"] = True
+        navigate_to("landing_public")
+
+    st.markdown(
+        """
+<p class="subtext">
+All numbers reset on refresh. To make Crowdlike real, connect wallet data,
+Qubic events, and launch it through Nostromo.
+</p>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # If any of the buttons fired, intro_done is True and next rerun will go to main()
+    return not st.session_state["intro_done"]
+
 
 
 def init_user_state():
@@ -4483,5 +4646,13 @@ def main():
 
 
 if __name__ == "__main__":
+    # 1) Auth gate (login / signup / guest)
+    needs_auth = render_auth_gate()
 
-    main()
+    # If auth gate is still showing, stop here
+    if not needs_auth:
+        # 2) Crowdlike intro gate (unless intro_done already True)
+        showing_intro = render_crowdlike_intro()
+        # 3) Main multipage app
+        if not showing_intro:
+            main()
