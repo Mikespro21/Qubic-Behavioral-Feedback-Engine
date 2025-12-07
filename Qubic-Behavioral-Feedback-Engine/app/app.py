@@ -1071,12 +1071,9 @@ def get_page_by_id(page_id: str) -> Optional[Page]:
 
 
 def navigate_to(page_id: str):
-    """Persist desired section/page in session state and trigger a rerun."""
-    page = get_page_by_id(page_id)
-    if not page:
-        return
-    st.session_state["nav_section"] = page.section
-    st.session_state["nav_page_label"] = page.label
+    """Schedule navigation to a page on the next rerun."""
+    st.session_state["pending_nav_page_id"] = page_id
+
 
 
 
@@ -4567,42 +4564,39 @@ for _p in PAGES:
 def main():
 
     # Always ensure user_state exists for this session
-
     init_user_state()
 
-
-
     # Sections in a deterministic order
-
     sections_order = [
-
         "Entry & Auth",
-
         "Onboarding & Home",
-
         "Account & Profile",
-
         "XP & Stats",
-
         "Behavior Scenarios",
-
         "Shop & Currency",
-
         "Social & Competition",
-
         "Settings & System",
-
         "Admin & Dev",
-
     ]
-
     sections = [s for s in sections_order if any(p.section == s for p in PAGES)]
 
+    # --- NEW: apply any pending navigation before creating widgets ---
+    pending_page_id = st.session_state.pop("pending_nav_page_id", None) \
+        if "pending_nav_page_id" in st.session_state else None
+
+    if pending_page_id:
+        page = get_page_by_id(pending_page_id)
+        if page:
+            st.session_state["nav_section"] = page.section
+            st.session_state["nav_page_label"] = page.label
+
+    # Defaults if nothing set yet
     if "nav_section" not in st.session_state:
         st.session_state["nav_section"] = sections[0]
     if "nav_page_label" not in st.session_state:
         first_section_pages = [p for p in PAGES if p.section == st.session_state["nav_section"]]
         st.session_state["nav_page_label"] = first_section_pages[0].label if first_section_pages else ""
+
 
 
 
