@@ -1744,6 +1744,8 @@ def render_top_bar(active_page_label: str):
         ("Shop", "shop_home"),
         ("Notifications", "notifications_center"),
         ("Invest", "invest_case"),
+        ("Qubic testnet", "qubic_network"),
+
     ]
     cols = st.columns(len(nav_items))
     for (label, target), col in zip(nav_items, cols):
