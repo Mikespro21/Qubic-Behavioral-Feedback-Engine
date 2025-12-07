@@ -1695,6 +1695,13 @@ add_page("admin_reports_queue", "User Reports Moderation Queue", "Admin & Dev", 
 
 add_page("admin_system_status", "System Status / Logs", "Admin & Dev", "simple_table")
 
+add_page(
+    "qubic_network",
+    "Qubic public testnet",
+    "XP & Stats",          # or "Onboarding & Home" if you prefer
+    "qubic_network",       # must match TEMPLATE_DISPATCH key
+)
+
 
 
 
