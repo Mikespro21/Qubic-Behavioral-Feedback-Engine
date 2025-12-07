@@ -1,3 +1,4 @@
+import requests  # add this
 import streamlit as st
 
 from dataclasses import dataclass
@@ -511,6 +512,50 @@ def get_subject_xp_breakdown():
     return breakdown
 
 
+# ============================================================
+# QUBIC PUBLIC TESTNET RPC (OPTION 2: LIGHTWEIGHT INTEGRATION)
+# ============================================================
+
+QUBIC_PUBLIC_RPC = "https://testnet-rpc.qubicdev.com"
+
+def fetch_qubic_status(rpc_endpoint: str = QUBIC_PUBLIC_RPC):
+    """
+    Call /v1/status on a Qubic RPC endpoint.
+    Default: public testnet at https://testnet-rpc.qubicdev.com
+    """
+    try:
+        resp = requests.get(f"{rpc_endpoint}/v1/status", timeout=8)
+        resp.raise_for_status()
+        return resp.json()
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def fetch_qubic_tick(rpc_endpoint: str = QUBIC_PUBLIC_RPC):
+    """
+    Call /v1/tick on a Qubic RPC endpoint to get current tick.
+    """
+    try:
+        resp = requests.get(f"{rpc_endpoint}/v1/tick", timeout=8)
+        resp.raise_for_status()
+        return resp.json()
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def fetch_qubic_balance(identity: str, rpc_endpoint: str = QUBIC_PUBLIC_RPC):
+    """
+    Call /v1/balances/{identity} for a given address ID on Qubic.
+    """
+    try:
+        identity = identity.strip()
+        if not identity:
+            return {"error": "No identity provided"}
+        resp = requests.get(f"{rpc_endpoint}/v1/balances/{identity}", timeout=8)
+        resp.raise_for_status()
+        return resp.json()
+    except Exception as e:
+        return {"error": str(e)}
 
 
 
@@ -609,6 +654,8 @@ def compute_achievements_catalog(state):
         f"{xp}/1000 XP",
 
     )
+
+
 
     _achievement(
 
@@ -1711,6 +1758,84 @@ def render_top_bar(active_page_label: str):
 # TEMPLATE RENDERERS
 
 # ============================================================
+
+def tpl_qubic_network(page: Page):
+    """Live Qubic public testnet snapshot using RPC (no own node needed)."""
+    render_top_bar(page.label)
+
+    st.markdown('<div class="main-container">', unsafe_allow_html=True)
+    st.markdown("### Qubic Network Snapshot (Public Testnet)")
+    st.write(
+        "This view pulls **live data** from the public Qubic testnet RPC at "
+        "`https://testnet-rpc.qubicdev.com`. No local node, no contracts required."
+    )
+
+    # Allow override in case you later point to your own node
+    rpc_endpoint = st.text_input(
+        "RPC endpoint",
+        value=QUBIC_PUBLIC_RPC,
+        help="Use the public testnet now; swap to your own node URL later (http://YOUR_NODE_IP).",
+    )
+
+    col_status, col_tick = st.columns(2)
+
+    # -------- Status column --------
+    with col_status:
+        st.markdown("#### Network status")
+        status = fetch_qubic_status(rpc_endpoint)
+        if "error" in status:
+            st.error(f"Could not reach RPC: {status['error']}")
+        else:
+            # Use .get so we don't crash if a field name changes
+            st.write(f"Circulating supply: {status.get('circulatingSupply', '—')}")
+            st.write(f"Active addresses: {status.get('activeAddresses', '—')}")
+            st.write(f"Price (USD): {status.get('price', '—')}")
+            st.write(f"Market cap (USD): {status.get('marketCap', '—')}")
+            st.write(f"Timestamp: {status.get('timestamp', '—')}")
+
+    # -------- Tick column --------
+    with col_tick:
+        st.markdown("#### Current tick")
+        tick_info = fetch_qubic_tick(rpc_endpoint)
+        if "error" in tick_info:
+            st.error(f"Could not read tick: {tick_info['error']}")
+        else:
+            # Some RPCs may wrap tick data; handle both direct and nested formats
+            tick_value = tick_info.get("tick", tick_info.get("currentTick", "—"))
+            st.write(f"Tick (block height): {tick_value}")
+            st.json(tick_info)
+
+    st.write("---")
+    st.markdown("#### Quick balance lookup (testnet only)")
+    st.write(
+        "Paste any **testnet identity** here (for example one generated via the faucet or CLI) "
+        "to see its live balance on the public testnet."
+    )
+
+    identity = st.text_input(
+        "Identity (address ID)",
+        placeholder="Paste a testnet identity (not a seed!)",
+    )
+    if identity:
+        bal = fetch_qubic_balance(identity, rpc_endpoint)
+        if "error" in bal:
+            st.error(f"Balance lookup failed: {bal['error']}")
+        else:
+            st.write(f"Balance: {bal.get('balance', '—')}")
+            st.write(f"Incoming amount: {bal.get('incomingAmount', '—')}")
+            st.write(f"Outgoing amount: {bal.get('outgoingAmount', '—')}")
+            st.write(f"Number of incoming transfers: {bal.get('numberOfIncomingTransfers', '—')}")
+            st.write(f"Number of outgoing transfers: {bal.get('numberOfOutgoingTransfers', '—')}")
+
+    st.write("---")
+    st.markdown(
+        "<p class='subtext'>Crowdlike currently uses **synthetic XP and coins**, "
+        "but this page proves it can read **real Qubic network data** via RPC.</p>",
+        unsafe_allow_html=True,
+    )
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
 
 def tpl_login(page: Page):
 
@@ -3236,6 +3361,7 @@ TEMPLATE_DISPATCH = {
     "shop_page": tpl_shop_page,
     "settings_list": tpl_settings_list,
     "onboard_subjects": tpl_onboard_subjects,
+    "qubic_network": tpl_qubic_network,  # ⬅️ add this line
 }
 
 
@@ -4344,12 +4470,14 @@ def tpl_metrics_lab(page: Page):
         st.success(f"Simulation complete: +{xp_gain} XP, token balance change {token_delta}.")
 
     st.write("---")
-    actions = st.columns(5)
+    actions = st.columns(6)
     actions[0].button("Open XP Overview", on_click=navigate_to, args=("xp_overview",), use_container_width=True)
     actions[1].button("Run scenario", on_click=navigate_to, args=("scenario_run",), use_container_width=True)
     actions[2].button("Go to shop", on_click=navigate_to, args=("shop_home",), use_container_width=True)
     actions[3].button("Token trading", on_click=navigate_to, args=("token_trading",), use_container_width=True)
     actions[4].button("Invest case", on_click=navigate_to, args=("invest_case",), use_container_width=True)
+    actions[5].button("Qubic testnet", on_click=navigate_to, args=("qubic_network",), use_container_width=True)
+
     st.markdown("</div>", unsafe_allow_html=True)
 
 
