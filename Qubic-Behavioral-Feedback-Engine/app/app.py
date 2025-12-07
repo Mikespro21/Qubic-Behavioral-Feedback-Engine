@@ -1840,6 +1840,7 @@ def tpl_qubic_network(page: Page):
     identity = st.text_input(
         "Identity (address ID)",
         placeholder="Paste a testnet identity (not a seed!)",
+        key="qubic_identity_lookup",
     )
     if identity:
         bal = fetch_qubic_balance(identity, rpc_endpoint)
